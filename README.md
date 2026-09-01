@@ -26,7 +26,7 @@ O objetivo principal é avaliar os principais frameworks e ferramentas do mercad
 
 | Ferramenta / Framework | Finalidade | Status de Avaliação |
 | :--- | :--- | :--- |
-| **Typebot** | Criação de fluxos conversacionais dinâmicos e intuitivos | 🟡 Em testes |
+| **Typebot** | Criação de fluxos conversacionais dinâmicos e intuitivos | 🟡 Em análise |
 | **Botpress / Chatbot Frameworks** | Motor de conversação e regras de diálogo | 🟡 Em análise |
 | **Webhooks & APIs** | Integração com sistemas internos e CRMs | ⚪ Planejado |
 | **Node.js / Python** | Automações e scripts de integração | ⚪ Planejado |
