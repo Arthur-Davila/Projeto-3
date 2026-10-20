@@ -1,7 +1,29 @@
-*.mdf
-*.ldf
-*.ndf
-*.bak
-.vs/
-bin/
-obj/
+
+# Java
+*.class
+*.log
+hs_err_pid*
+replay_pid*
+
+# Maven
+backend/target/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# React / Node.js
+frontend/node_modules/
+frontend/build/
+frontend/coverage/
+frontend/.env
+frontend/.env.*
+
+# Variáveis de ambiente e segredos
+.env
+.env.*
+!.env.example
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
