@@ -60,7 +60,19 @@ public class Conversa {
 		this.status = StatusConversa.EM_ATENDIMENTO_BOT;
 	}
 
-	// --- Ações: única fo1ma de mudar o status, sempre validando a transição ---
+	// Para repositórios que não geram id sozinhos (ex.: em memória); com JPA o banco preenche.
+	// Aceita uma única atribuição: depois de salva, a conversa nunca troca de identidade.
+	public void atribuirId(Long id) {
+		if (id == null) {
+			throw new IllegalArgumentException("Id é obrigatório");
+		}
+		if (this.id != null) {
+			throw new IllegalStateException("Conversa já possui id " + this.id);
+		}
+		this.id = id;
+	}
+
+	// --- Ações: única forma de mudar o status, sempre validando a transição ---
 
 	public void encaminharParaHumano() {
 		exigirStatus(StatusConversa.EM_ATENDIMENTO_BOT, "encaminhar para humano");
