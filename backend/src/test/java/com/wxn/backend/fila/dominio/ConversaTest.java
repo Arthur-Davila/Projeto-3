@@ -44,6 +44,27 @@ class ConversaTest {
 		assertThrows(IllegalArgumentException.class, () -> new Conversa("  "));
 	}
 
+	// --- Identidade ---
+
+	@Test
+	void atribuirIdDefineOIdUmaUnicaVez() {
+		Conversa conversa = new Conversa(TELEFONE);
+
+		conversa.atribuirId(10L);
+
+		assertEquals(10L, conversa.getId());
+		assertThrows(IllegalStateException.class, () -> conversa.atribuirId(11L));
+		assertEquals(10L, conversa.getId());
+	}
+
+	@Test
+	void naoPermiteAtribuirIdNulo() {
+		Conversa conversa = new Conversa(TELEFONE);
+
+		assertThrows(IllegalArgumentException.class, () -> conversa.atribuirId(null));
+		assertNull(conversa.getId());
+	}
+
 	// --- Transições válidas ---
 
 	@Test
