@@ -10,9 +10,12 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Version;
@@ -24,55 +27,61 @@ public class Conversa {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	// O cliente não muda durante a conversa; updatable=false protege isso também no banco.
-	@Column(nullable = false, updatable = false)
-	private String telefoneCliente;
+	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@JoinColumn(name = "cliente_id", nullable = false, updatable = false)
+	private Cliente cliente;
+
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "chatbot_id")
+	private Chatbot chatbot;
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
 	private StatusConversa status;
 
-	// Nulo enquanto o bot atende: só faz sentido medir espera depois de entrar na fila.
+	private String assunto;
+
+	private String equipe;
+
 	private LocalDateTime entrouNaFilaEm;
 
-	// Só o id, para não acoplar este agregado a uma entidade de usuário que ainda não existe.
-	private Long atendenteId;
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "atendente_id")
+	private Atendente atendente;
 
-	// Optimistic locking: se dois atendentes assumirem a mesma conversa ao mesmo tempo,
-	// o segundo commit falha (OptimisticLockException) em vez de sobrescrever o primeiro.
 	@Version
 	private Long versao;
 
-	// @OrderBy garante a ordem cronológica também quando a lista vem do banco.
 	@OneToMany(mappedBy = "conversa", cascade = CascadeType.ALL, orphanRemoval = true)
 	@OrderBy("enviadaEm ASC")
 	private List<Mensagem> mensagens = new ArrayList<>();
 
-	// Exigido pelo JPA; protected para impedir conversas sem telefone no código de negócio.
 	protected Conversa() {
 	}
 
-	public Conversa(String telefoneCliente) {
-		if (telefoneCliente == null || telefoneCliente.isBlank()) {
-			throw new IllegalArgumentException("Telefone do cliente é obrigatório");
+	public Conversa(Cliente cliente) {
+		if (cliente == null) {
+			throw new IllegalArgumentException("Cliente é obrigatório");
 		}
-		this.telefoneCliente = telefoneCliente;
+		this.cliente = cliente;
 		this.status = StatusConversa.EM_ATENDIMENTO_BOT;
 	}
 
-	// Para repositórios que não geram id sozinhos (ex.: em memória); com JPA o banco preenche.
-	// Aceita uma única atribuição: depois de salva, a conversa nunca troca de identidade.
-	public void atribuirId(Long id) {
-		if (id == null) {
-			throw new IllegalArgumentException("Id é obrigatório");
-		}
-		if (this.id != null) {
-			throw new IllegalStateException("Conversa já possui id " + this.id);
-		}
-		this.id = id;
+	public Conversa(Cliente cliente, Chatbot chatbot) {
+		this(cliente);
+		this.chatbot = chatbot;
 	}
 
-	// --- Ações: única forma de mudar o status, sempre validando a transição ---
+	// --- Ações: única forma de mudar o estado, sempre validando a transição ---
+
+	public void definirTriagem(String assunto, String equipe) {
+		if (assunto != null && !assunto.isBlank()) {
+			this.assunto = assunto;
+		}
+		if (equipe != null && !equipe.isBlank()) {
+			this.equipe = equipe;
+		}
+	}
 
 	public void encaminharParaHumano() {
 		exigirStatus(StatusConversa.EM_ATENDIMENTO_BOT, "encaminhar para humano");
@@ -80,14 +89,16 @@ public class Conversa {
 		this.entrouNaFilaEm = LocalDateTime.now();
 	}
 
-	public void assumirPor(Long atendenteId) {
-		// Validação do argumento antes da transição, para não deixar estado pela metade.
-		if (atendenteId == null) {
-			throw new IllegalArgumentException("Id do atendente é obrigatório");
+	public void assumirPor(Atendente atendente) {
+		if (atendente == null) {
+			throw new IllegalArgumentException("Atendente é obrigatório");
+		}
+		if (!atendente.isDisponivel()) {
+			throw new TransicaoInvalidaException("Atendente não está disponível");
 		}
 		exigirStatus(StatusConversa.AGUARDANDO_HUMANO, "assumir");
 		this.status = StatusConversa.EM_ATENDIMENTO_HUMANO;
-		this.atendenteId = atendenteId;
+		this.atendente = atendente;
 	}
 
 	public void encerrar() {
@@ -101,7 +112,6 @@ public class Conversa {
 		return status == StatusConversa.AGUARDANDO_HUMANO;
 	}
 
-	// Recebe "agora" por parâmetro para o cálculo ser determinístico e testável sem relógio real.
 	public Duration tempoDeEspera(LocalDateTime agora) {
 		if (status != StatusConversa.AGUARDANDO_HUMANO) {
 			return Duration.ZERO;
@@ -134,29 +144,47 @@ public class Conversa {
 		return id;
 	}
 
+	public Cliente getCliente() {
+		return cliente;
+	}
+
+	public Chatbot getChatbot() {
+		return chatbot;
+	}
+
 	public String getTelefoneCliente() {
-		return telefoneCliente;
+		return cliente != null ? cliente.getTelefone() : null;
 	}
 
 	public StatusConversa getStatus() {
 		return status;
 	}
 
+	public String getAssunto() {
+		return assunto;
+	}
+
+	public String getEquipe() {
+		return equipe;
+	}
+
 	public LocalDateTime getEntrouNaFilaEm() {
 		return entrouNaFilaEm;
 	}
 
+	public Atendente getAtendente() {
+		return atendente;
+	}
+
 	public Long getAtendenteId() {
-		return atendenteId;
+		return atendente != null ? atendente.getId() : null;
 	}
 
 	public Long getVersao() {
 		return versao;
 	}
 
-	// Cópia imutável: de fora não dá para adicionar/remover mensagens sem passar pela regra.
 	public List<Mensagem> getMensagens() {
 		return List.copyOf(mensagens);
 	}
-
 }
