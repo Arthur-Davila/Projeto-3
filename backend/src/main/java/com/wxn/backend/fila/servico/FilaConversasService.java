@@ -1,45 +1,62 @@
 package com.wxn.backend.fila.servico;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.wxn.backend.fila.dominio.Atendente;
 import com.wxn.backend.fila.dominio.Conversa;
 import com.wxn.backend.fila.dominio.StatusConversa;
+import com.wxn.backend.fila.repositorio.AtendenteRepository;
 import com.wxn.backend.fila.repositorio.ConversaRepository;
 
-// Coordena, não guarda regra: busca no repositório, pede para a Conversa agir
-// (ela valida a transição) e salva. Não existe classe Fila: a fila é filtro + ordem.
 @Service
 public class FilaConversasService {
 
-	// Depende da interface, não da implementação: o Spring injeta a versão disponível.
-	private final ConversaRepository repositorio;
+	private final ConversaRepository conversas;
+	private final AtendenteRepository atendentes;
 
-	public FilaConversasService(ConversaRepository repositorio) {
-		this.repositorio = repositorio;
+	public FilaConversasService(ConversaRepository conversas, AtendenteRepository atendentes) {
+		this.conversas = conversas;
+		this.atendentes = atendentes;
 	}
 
-	// Conversas aguardando humano, quem esperou mais primeiro. Quando o status muda,
-	// a conversa sai da fila sozinha.
-	public List<Conversa> listarFila() {
-		return repositorio.buscarPorStatusOrdenadoPorEntrada(StatusConversa.AGUARDANDO_HUMANO);
+	@Transactional(readOnly = true)
+	public List<ItemFila> listarFila() {
+		LocalDateTime agora = LocalDateTime.now();
+		return conversas.findByStatusOrderByEntrouNaFilaEmAscIdAsc(StatusConversa.AGUARDANDO_HUMANO)
+				.stream()
+				.map(conversa -> ItemFila.de(conversa, agora))
+				.toList();
 	}
 
+	@Transactional(readOnly = true)
 	public Conversa buscarPorId(Long id) {
-		return repositorio.buscarPorId(id)
+		return conversas.findById(id)
 				.orElseThrow(() -> new ConversaNaoEncontradaException(id));
 	}
 
-	// A regra "pode ser assumida?" fica na Conversa. Quem garante que só um atendente
-	// vence um clique simultâneo é o banco (@Version na Conversa), dentro desta transação;
-	// a versão em memória não oferece essa garantia.
 	@Transactional
 	public Conversa assumir(Long conversaId, Long atendenteId) {
 		Conversa conversa = buscarPorId(conversaId);
-		conversa.assumirPor(atendenteId);
-		return repositorio.salvar(conversa);
+		Atendente atendente = atendentes.findById(atendenteId)
+				.orElseThrow(() -> new AtendenteNaoEncontradoException(atendenteId));
+
+		if (conversa.getStatus() == StatusConversa.EM_ATENDIMENTO_HUMANO) {
+			throw new ConversaJaAssumidaException(conversaId);
+		}
+		conversa.assumirPor(atendente);
+
+		try {
+			// Clique simultâneo: o @Version rejeita o segundo UPDATE. O flush antecipa esse erro
+			// para dentro do método, senão ele só apareceria no commit.
+			return conversas.saveAndFlush(conversa);
+		} catch (OptimisticLockingFailureException e) {
+			throw new ConversaJaAssumidaException(conversaId);
+		}
 	}
 
 }
