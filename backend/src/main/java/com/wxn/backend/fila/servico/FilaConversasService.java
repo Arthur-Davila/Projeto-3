@@ -34,6 +34,36 @@ public class FilaConversasService {
 	}
 
 	@Transactional(readOnly = true)
+	public List<AtendenteResumo> listarAtendentes() {
+		return atendentes.findAllByOrderByNomeAsc()
+				.stream()
+				.map(AtendenteResumo::de)
+				.toList();
+	}
+
+	@Transactional(readOnly = true)
+	public List<ItemAtendimento> listarAtendimentosDoAtendente(Long atendenteId) {
+		if (atendenteId == null) {
+			throw new IllegalArgumentException("Atendente é obrigatório");
+		}
+		if (!atendentes.existsById(atendenteId)) {
+			throw new AtendenteNaoEncontradoException(atendenteId);
+		}
+		return conversas
+				.buscarAtendimentosDoAtendente(atendenteId, StatusConversa.EM_ATENDIMENTO_HUMANO)
+				.stream()
+				.map(ItemAtendimento::de)
+				.toList();
+	}
+
+	@Transactional(readOnly = true)
+	public DetalheConversa detalhar(Long id) {
+		Conversa conversa = conversas.findComDetalhesById(id)
+				.orElseThrow(() -> new ConversaNaoEncontradaException(id));
+		return DetalheConversa.de(conversa);
+	}
+
+	@Transactional(readOnly = true)
 	public Conversa buscarPorId(Long id) {
 		return conversas.findById(id)
 				.orElseThrow(() -> new ConversaNaoEncontradaException(id));

@@ -135,6 +135,29 @@ Com o backend e o frontend em execução, acesse:
 
 Mantenha os dois terminais abertos enquanto estiver utilizando a aplicação.
 
+### 💬 Painel de atendimento humano (segunda história)
+
+Ao abrir o frontend, a tela **Assuma conversas e continue o atendimento** permite:
+
+- selecionar o atendente logado;
+- acompanhar a fila de conversas encaminhadas pelo chatbot, com assunto, equipe e tempo de espera;
+- filtrar a fila por equipe;
+- ver o histórico de mensagens antes de assumir;
+- assumir uma conversa e acompanhá-la em **Meus atendimentos**;
+- receber avisos quando a conversa já foi assumida por outra pessoa.
+
+A tela atualiza a fila automaticamente a cada 15 segundos e consome a API do backend:
+
+| Método | Endpoint | Uso |
+| :--- | :--- | :--- |
+| `GET` | `/api/fila` | Lista as conversas aguardando atendente humano |
+| `GET` | `/api/atendentes` | Lista os atendentes para o seletor |
+| `GET` | `/api/atendimentos?atendenteId={id}` | Lista as conversas em atendimento humano do atendente |
+| `GET` | `/api/conversas/{id}` | Traz o detalhe e o histórico de mensagens |
+| `POST` | `/api/fila/{id}/assumir` | Assume a conversa; corpo `{ "atendenteId": 1 }` |
+
+Para facilitar a avaliação, o backend cria atendentes e conversas de exemplo quando o banco está vazio. Esse comportamento pode ser desativado com `WXN_DADOS_DEMO=false` antes de iniciar a aplicação.
+
 **Observações:**
 - O acesso ao banco de dados depende de o serviço PostgreSQL estar em execução e das credenciais estarem corretas.
 - Caso o projeto utilize endpoints de API no frontend, a URL do backend deverá estar configurada de acordo com a implementação.
