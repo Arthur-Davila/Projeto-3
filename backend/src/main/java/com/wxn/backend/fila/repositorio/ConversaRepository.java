@@ -2,6 +2,7 @@ package com.wxn.backend.fila.repositorio;
 
 import java.util.List;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.wxn.backend.fila.dominio.Conversa;
@@ -15,5 +16,7 @@ import com.wxn.backend.fila.dominio.StatusConversa;
  */
 public interface ConversaRepository extends JpaRepository<Conversa, Long> {
 
-	List<Conversa> findByStatusOrderByEntrouNaFilaEmAsc(StatusConversa status);
+	// EntityGraph: traz o cliente na mesma consulta, evitando um SELECT extra por item (N+1).
+	@EntityGraph(attributePaths = "cliente")
+	List<Conversa> findByStatusOrderByEntrouNaFilaEmAscIdAsc(StatusConversa status);
 }

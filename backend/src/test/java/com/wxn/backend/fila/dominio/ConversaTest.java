@@ -19,8 +19,16 @@ class ConversaTest {
 
 	private static final String TELEFONE = "5581999990000";
 
+	private Cliente clientePadrao() {
+		return new Cliente("Maria Silva", TELEFONE);
+	}
+
+	private Atendente atendentePadrao() {
+		return new Atendente("Carlos Souza", "carlos@wxn.com", "Suporte");
+	}
+
 	private Conversa conversaNaFila() {
-		Conversa conversa = new Conversa(TELEFONE);
+		Conversa conversa = new Conversa(clientePadrao());
 		conversa.encaminharParaHumano();
 		return conversa;
 	}
@@ -29,19 +37,20 @@ class ConversaTest {
 
 	@Test
 	void conversaNovaNasceEmAtendimentoPeloBot() {
-		Conversa conversa = new Conversa(TELEFONE);
+		Cliente cliente = clientePadrao();
+		Conversa conversa = new Conversa(cliente);
 
 		assertEquals(StatusConversa.EM_ATENDIMENTO_BOT, conversa.getStatus());
+		assertSame(cliente, conversa.getCliente());
 		assertEquals(TELEFONE, conversa.getTelefoneCliente());
 		assertNull(conversa.getEntrouNaFilaEm());
-		assertNull(conversa.getAtendenteId());
+		assertNull(conversa.getAtendente());
 		assertTrue(conversa.getMensagens().isEmpty());
 	}
 
 	@Test
-	void naoPermiteCriarConversaSemTelefone() {
+	void naoPermiteCriarConversaSemCliente() {
 		assertThrows(IllegalArgumentException.class, () -> new Conversa(null));
-		assertThrows(IllegalArgumentException.class, () -> new Conversa("  "));
 	}
 
 	// --- Transições válidas ---
@@ -59,16 +68,17 @@ class ConversaTest {
 	@Test
 	void assumirPorAtendenteMudaStatusEGuardaAtendente() {
 		Conversa conversa = conversaNaFila();
+		Atendente atendente = atendentePadrao();
 
-		conversa.assumirPor(42L);
+		conversa.assumirPor(atendente);
 
 		assertEquals(StatusConversa.EM_ATENDIMENTO_HUMANO, conversa.getStatus());
-		assertEquals(42L, conversa.getAtendenteId());
+		assertSame(atendente, conversa.getAtendente());
 	}
 
 	@Test
 	void podeEncerrarConversaEmAtendimentoPeloBot() {
-		Conversa conversa = new Conversa(TELEFONE);
+		Conversa conversa = new Conversa(clientePadrao());
 
 		conversa.encerrar();
 
@@ -87,7 +97,7 @@ class ConversaTest {
 	@Test
 	void podeEncerrarConversaEmAtendimentoHumano() {
 		Conversa conversa = conversaNaFila();
-		conversa.assumirPor(1L);
+		conversa.assumirPor(atendentePadrao());
 
 		conversa.encerrar();
 
@@ -106,14 +116,14 @@ class ConversaTest {
 	@Test
 	void naoPodeEncaminharParaHumanoQuandoJaEstaComAtendente() {
 		Conversa conversa = conversaNaFila();
-		conversa.assumirPor(1L);
+		conversa.assumirPor(atendentePadrao());
 
 		assertThrows(TransicaoInvalidaException.class, conversa::encaminharParaHumano);
 	}
 
 	@Test
 	void naoPodeEncaminharParaHumanoConversaEncerrada() {
-		Conversa conversa = new Conversa(TELEFONE);
+		Conversa conversa = new Conversa(clientePadrao());
 		conversa.encerrar();
 
 		assertThrows(TransicaoInvalidaException.class, conversa::encaminharParaHumano);
@@ -121,26 +131,39 @@ class ConversaTest {
 
 	@Test
 	void naoPodeAssumirConversaQueAindaEstaComOBot() {
-		Conversa conversa = new Conversa(TELEFONE);
+		Conversa conversa = new Conversa(clientePadrao());
+		Atendente atendente = atendentePadrao();
 
-		assertThrows(TransicaoInvalidaException.class, () -> conversa.assumirPor(1L));
+		assertThrows(TransicaoInvalidaException.class, () -> conversa.assumirPor(atendente));
 	}
 
 	@Test
 	void naoPodeAssumirConversaJaAssumidaPorOutroAtendente() {
 		Conversa conversa = conversaNaFila();
-		conversa.assumirPor(1L);
+		Atendente primeiro = atendentePadrao();
+		Atendente segundo = new Atendente("Ana Lima", "ana@wxn.com", "Suporte");
+		conversa.assumirPor(primeiro);
 
-		assertThrows(TransicaoInvalidaException.class, () -> conversa.assumirPor(2L));
-		assertEquals(1L, conversa.getAtendenteId());
+		assertThrows(TransicaoInvalidaException.class, () -> conversa.assumirPor(segundo));
+		assertSame(primeiro, conversa.getAtendente());
+	}
+
+	@Test
+	void naoPodeAssumirConversaComAtendenteIndisponivel() {
+		Conversa conversa = conversaNaFila();
+		Atendente atendente = atendentePadrao();
+		atendente.ficarIndisponivel();
+
+		assertThrows(TransicaoInvalidaException.class, () -> conversa.assumirPor(atendente));
 	}
 
 	@Test
 	void naoPodeAssumirConversaEncerrada() {
 		Conversa conversa = conversaNaFila();
 		conversa.encerrar();
+		Atendente atendente = atendentePadrao();
 
-		assertThrows(TransicaoInvalidaException.class, () -> conversa.assumirPor(1L));
+		assertThrows(TransicaoInvalidaException.class, () -> conversa.assumirPor(atendente));
 	}
 
 	@Test
@@ -153,7 +176,7 @@ class ConversaTest {
 
 	@Test
 	void naoPodeEncerrarConversaJaEncerrada() {
-		Conversa conversa = new Conversa(TELEFONE);
+		Conversa conversa = new Conversa(clientePadrao());
 		conversa.encerrar();
 
 		assertThrows(TransicaoInvalidaException.class, conversa::encerrar);
@@ -163,13 +186,13 @@ class ConversaTest {
 
 	@Test
 	void soPodeSerAssumidaQuandoEstaAguardandoHumano() {
-		Conversa conversa = new Conversa(TELEFONE);
+		Conversa conversa = new Conversa(clientePadrao());
 		assertFalse(conversa.podeSerAssumida());
 
 		conversa.encaminharParaHumano();
 		assertTrue(conversa.podeSerAssumida());
 
-		conversa.assumirPor(1L);
+		conversa.assumirPor(atendentePadrao());
 		assertFalse(conversa.podeSerAssumida());
 
 		conversa.encerrar();
@@ -180,7 +203,7 @@ class ConversaTest {
 
 	@Test
 	void tempoDeEsperaEhZeroEnquantoBotAtende() {
-		Conversa conversa = new Conversa(TELEFONE);
+		Conversa conversa = new Conversa(clientePadrao());
 
 		assertEquals(Duration.ZERO, conversa.tempoDeEspera(LocalDateTime.now()));
 	}
@@ -197,7 +220,7 @@ class ConversaTest {
 	void tempoDeEsperaEhZeroDepoisDeAssumida() {
 		Conversa conversa = conversaNaFila();
 		LocalDateTime agora = conversa.getEntrouNaFilaEm().plusMinutes(7);
-		conversa.assumirPor(1L);
+		conversa.assumirPor(atendentePadrao());
 
 		assertEquals(Duration.ZERO, conversa.tempoDeEspera(agora));
 	}
@@ -215,7 +238,7 @@ class ConversaTest {
 
 	@Test
 	void adicionarMensagemVinculaAConversaEGuardaDados() {
-		Conversa conversa = new Conversa(TELEFONE);
+		Conversa conversa = new Conversa(clientePadrao());
 
 		Mensagem mensagem = conversa.adicionarMensagem("Olá", OrigemMensagem.CLIENTE);
 
@@ -228,7 +251,7 @@ class ConversaTest {
 
 	@Test
 	void mensagensMantemOrdemDeInsercao() {
-		Conversa conversa = new Conversa(TELEFONE);
+		Conversa conversa = new Conversa(clientePadrao());
 
 		Mensagem primeira = conversa.adicionarMensagem("Oi", OrigemMensagem.CLIENTE);
 		Mensagem segunda = conversa.adicionarMensagem("Como posso ajudar?", OrigemMensagem.BOT);
@@ -238,7 +261,7 @@ class ConversaTest {
 
 	@Test
 	void naoPermiteMensagemSemConteudoOuSemOrigem() {
-		Conversa conversa = new Conversa(TELEFONE);
+		Conversa conversa = new Conversa(clientePadrao());
 
 		assertThrows(IllegalArgumentException.class,
 				() -> conversa.adicionarMensagem("  ", OrigemMensagem.CLIENTE));
@@ -249,7 +272,7 @@ class ConversaTest {
 
 	@Test
 	void listaDeMensagensNaoPodeSerModificadaPorFora() {
-		Conversa conversa = new Conversa(TELEFONE);
+		Conversa conversa = new Conversa(clientePadrao());
 		Mensagem mensagem = conversa.adicionarMensagem("Oi", OrigemMensagem.CLIENTE);
 		List<Mensagem> lista = conversa.getMensagens();
 
@@ -260,7 +283,7 @@ class ConversaTest {
 
 	@Test
 	void listaDevolvidaNaoRefleteMensagensAdicionadasDepois() {
-		Conversa conversa = new Conversa(TELEFONE);
+		Conversa conversa = new Conversa(clientePadrao());
 		List<Mensagem> copia = conversa.getMensagens();
 
 		conversa.adicionarMensagem("Oi", OrigemMensagem.CLIENTE);

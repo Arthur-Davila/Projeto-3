@@ -101,6 +101,17 @@ chmod +x mvnw
 
 O backend será iniciado na porta padrão `8080`, caso ela não tenha sido alterada na configuração.
 
+**Tabelas do banco (migração automática):** não é preciso rodar nenhum SQL manualmente. Ao iniciar, o backend usa o **Flyway** para criar ou atualizar as tabelas no banco `projeto_db`, a partir dos scripts em `backend/src/main/resources/db/migration`. Na primeira execução, com o banco vazio, o log mostra `Successfully applied 1 migration`. Em seguida, o Hibernate confere se as tabelas correspondem às classes de entidade e interrompe a inicialização se houver divergência.
+
+- Para alterar o esquema, crie um novo script (`V2__descricao.sql`, `V3__...`); nunca edite um script que já foi aplicado.
+- Se o banco já tiver tabelas criadas manualmente, sem o histórico do Flyway, apague-as (ou recrie o banco) antes da primeira execução.
+
+**Testes:** os testes usam um banco **H2 em memória** com a mesma migração, então não dependem do PostgreSQL:
+
+```bash
+./mvnw test
+```
+
 ### 💻 4. Executar o frontend
 
 Abra outro terminal, na pasta raiz do projeto, e execute:
