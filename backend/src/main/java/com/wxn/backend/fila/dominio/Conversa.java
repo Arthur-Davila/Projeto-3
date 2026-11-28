@@ -120,15 +120,40 @@ public class Conversa {
 	}
 
 	public Mensagem adicionarMensagem(String conteudo, OrigemMensagem origem) {
+		return adicionarMensagem(conteudo, origem, null);
+	}
+
+	public Mensagem adicionarMensagem(String conteudo, OrigemMensagem origem, String whatsappMessageId) {
 		if (conteudo == null || conteudo.isBlank()) {
 			throw new IllegalArgumentException("Conteúdo da mensagem é obrigatório");
 		}
 		if (origem == null) {
 			throw new IllegalArgumentException("Origem da mensagem é obrigatória");
 		}
-		Mensagem mensagem = new Mensagem(this, conteudo, origem);
+		Mensagem mensagem = new Mensagem(this, conteudo, origem, whatsappMessageId);
 		mensagens.add(mensagem);
 		return mensagem;
+	}
+
+	public Mensagem responderComoAtendente(String conteudo, Atendente atendente) {
+		return responderComoAtendente(conteudo, atendente, null);
+	}
+
+	public Mensagem responderComoAtendente(String conteudo, Atendente atendente, String whatsappMessageId) {
+		validarRespostaDoAtendente(atendente);
+		return adicionarMensagem(conteudo, OrigemMensagem.ATENDENTE, whatsappMessageId);
+	}
+
+	public void validarRespostaDoAtendente(Atendente atendente) {
+		if (atendente == null) {
+			throw new IllegalArgumentException("Atendente é obrigatório");
+		}
+		if (status != StatusConversa.EM_ATENDIMENTO_HUMANO) {
+			throw new TransicaoInvalidaException("Só conversas em atendimento humano podem receber respostas");
+		}
+		if (this.atendente == null || !this.atendente.getId().equals(atendente.getId())) {
+			throw new TransicaoInvalidaException("A conversa não pertence a este atendente");
+		}
 	}
 
 	private void exigirStatus(StatusConversa esperado, String acao) {

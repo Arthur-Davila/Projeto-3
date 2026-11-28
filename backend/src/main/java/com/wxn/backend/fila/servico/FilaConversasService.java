@@ -12,16 +12,19 @@ import com.wxn.backend.fila.dominio.Conversa;
 import com.wxn.backend.fila.dominio.StatusConversa;
 import com.wxn.backend.fila.repositorio.AtendenteRepository;
 import com.wxn.backend.fila.repositorio.ConversaRepository;
+import com.wxn.backend.integracao.WhatsAppCloudApiClient;
 
 @Service
 public class FilaConversasService {
 
 	private final ConversaRepository conversas;
 	private final AtendenteRepository atendentes;
+	private final WhatsAppCloudApiClient whatsapp;
 
-	public FilaConversasService(ConversaRepository conversas, AtendenteRepository atendentes) {
+	public FilaConversasService(ConversaRepository conversas, AtendenteRepository atendentes, WhatsAppCloudApiClient whatsapp) {
 		this.conversas = conversas;
 		this.atendentes = atendentes;
+		this.whatsapp = whatsapp;
 	}
 
 	@Transactional(readOnly = true)
@@ -67,6 +70,19 @@ public class FilaConversasService {
 	public Conversa buscarPorId(Long id) {
 		return conversas.findById(id)
 				.orElseThrow(() -> new ConversaNaoEncontradaException(id));
+	}
+
+	@Transactional
+	public DetalheConversa enviarMensagem(Long conversaId, Long atendenteId, String conteudo) {
+		Conversa conversa = buscarPorId(conversaId);
+		Atendente atendente = atendentes.findById(atendenteId)
+				.orElseThrow(() -> new AtendenteNaoEncontradoException(atendenteId));
+
+		conversa.validarRespostaDoAtendente(atendente);
+		String idWhatsapp = whatsapp.sendText(conversa.getTelefoneCliente(), conteudo).orElse(null);
+		conversa.responderComoAtendente(conteudo, atendente, idWhatsapp);
+		conversas.saveAndFlush(conversa);
+		return detalhar(conversaId);
 	}
 
 	@Transactional

@@ -31,6 +31,9 @@ public class Mensagem {
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime enviadaEm;
 
+	@Column(name = "whatsapp_message_id", unique = true, updatable = false)
+	private String whatsappMessageId;
+
 	// LAZY: ao listar mensagens não precisamos recarregar a conversa a cada linha.
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "conversa_id", nullable = false, updatable = false)
@@ -43,10 +46,15 @@ public class Mensagem {
 	// Visibilidade de pacote: só a Conversa (raiz do agregado) cria mensagens,
 	// garantindo que os dois lados da associação fiquem sempre consistentes.
 	Mensagem(Conversa conversa, String conteudo, OrigemMensagem origem) {
+		this(conversa, conteudo, origem, null);
+	}
+
+	Mensagem(Conversa conversa, String conteudo, OrigemMensagem origem, String whatsappMessageId) {
 		this.conversa = conversa;
 		this.conteudo = conteudo;
 		this.origem = origem;
 		this.enviadaEm = LocalDateTime.now();
+		this.whatsappMessageId = whatsappMessageId;
 	}
 
 	public Long getId() {
@@ -67,6 +75,10 @@ public class Mensagem {
 
 	public Conversa getConversa() {
 		return conversa;
+	}
+
+	public String getWhatsappMessageId() {
+		return whatsappMessageId;
 	}
 
 }

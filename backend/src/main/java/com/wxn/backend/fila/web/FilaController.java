@@ -60,4 +60,14 @@ public class FilaController {
 		servico.assumir(conversaId, requisicao.atendenteId());
 		return servico.detalhar(conversaId);
 	}
+
+	@PostMapping("/conversas/{conversaId}/mensagens")
+	public DetalheConversa enviarMensagem(
+			@PathVariable Long conversaId,
+			@RequestBody EnviarMensagemRequest requisicao) {
+		if (requisicao == null || requisicao.atendenteId() == null) {
+			throw new IllegalArgumentException("Atendente é obrigatório");
+		}
+		return servico.enviarMensagem(conversaId, requisicao.atendenteId(), requisicao.conteudo());
+	}
 }

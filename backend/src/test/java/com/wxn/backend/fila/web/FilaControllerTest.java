@@ -137,4 +137,20 @@ class FilaControllerTest {
 				.andExpect(jsonPath("$.mensagens[0].origem").value("CLIENTE"))
 				.andExpect(jsonPath("$.mensagens[1].origem").value("BOT"));
 	}
+
+	@Test
+	void atendenteAssumeEEnviaRespostaQueFicaNoHistorico() throws Exception {
+		mvc.perform(post("/api/fila/{id}/assumir", conversaId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"atendenteId\": " + atendenteId + "}"))
+				.andExpect(status().isOk());
+
+		mvc.perform(post("/api/conversas/{id}/mensagens", conversaId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"atendenteId\": " + atendenteId + ", \"conteudo\": \"Vou te ajudar agora.\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.mensagens.length()").value(3))
+				.andExpect(jsonPath("$.mensagens[2].conteudo").value("Vou te ajudar agora."))
+				.andExpect(jsonPath("$.mensagens[2].origem").value("ATENDENTE"));
+	}
 }

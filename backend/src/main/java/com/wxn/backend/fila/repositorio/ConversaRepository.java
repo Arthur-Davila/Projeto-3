@@ -2,6 +2,7 @@ package com.wxn.backend.fila.repositorio;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Collection;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -33,6 +34,11 @@ public interface ConversaRepository extends JpaRepository<Conversa, Long> {
 	List<Conversa> buscarAtendimentosDoAtendente(
 			@Param("atendenteId") Long atendenteId,
 			@Param("status") StatusConversa status);
+
+	@EntityGraph(attributePaths = { "cliente", "atendente", "mensagens" })
+	Optional<Conversa> findFirstByCliente_TelefoneAndStatusInOrderByIdDesc(
+			String telefone,
+			Collection<StatusConversa> status);
 
 	// Detalhe do painel: cliente, atendente e histórico de mensagens em uma única consulta.
 	@EntityGraph(attributePaths = { "cliente", "atendente", "mensagens" })

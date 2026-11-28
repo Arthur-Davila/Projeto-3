@@ -96,7 +96,10 @@ function Vazio({ titulo, texto }) {
   );
 }
 
-function ModalDetalhe({ conversa, onFechar }) {
+function ModalDetalhe({ conversa, atendenteId, onFechar, onEnviar, enviando }) {
+  const [texto, setTexto] = useState('');
+  const podeResponder = conversa.status === 'EM_ATENDIMENTO_HUMANO' && conversa.atendenteId === atendenteId;
+
   useEffect(() => {
     const aoPressionar = (evento) => {
       if (evento.key === 'Escape') onFechar();
@@ -130,7 +133,7 @@ function ModalDetalhe({ conversa, onFechar }) {
           <span className="tag tag--suave">{conversa.assunto || 'Sem assunto'}</span>
         </div>
 
-        <div className="modal__historico">
+        <div className="modal__historico" aria-live="polite">
           {conversa.mensagens.length === 0 ? (
             <p className="modal__sem-mensagens">Ainda não há mensagens nesta conversa.</p>
           ) : (
@@ -146,10 +149,39 @@ function ModalDetalhe({ conversa, onFechar }) {
           )}
         </div>
 
-        <div className="modal__rodape">
-          <span>{conversa.nomeAtendente ? `Atendente: ${conversa.nomeAtendente}` : 'Sem atendente humano'}</span>
-          <span>Na fila desde {formatarHorario(conversa.entrouNaFilaEm)}</span>
-        </div>
+        {podeResponder ? (
+          <form
+            className="composer"
+            onSubmit={async (evento) => {
+              evento.preventDefault();
+              const conteudo = texto.trim();
+              if (!conteudo || enviando) return;
+              if (await onEnviar(conteudo)) setTexto('');
+            }}
+          >
+            <label className="sr-only" htmlFor="resposta-conversa">Escreva uma resposta</label>
+            <textarea
+              id="resposta-conversa"
+              value={texto}
+              onChange={(evento) => setTexto(evento.target.value)}
+              placeholder="Escreva uma mensagem para o cliente..."
+              rows={2}
+              maxLength={2000}
+              disabled={enviando}
+            />
+            <div className="composer__rodape">
+              <span>Resposta enviada como {conversa.nomeAtendente || 'atendente'}</span>
+              <button className="botao botao--primario" type="submit" disabled={!texto.trim() || enviando}>
+                {enviando ? <><span className="spinner" aria-hidden="true" /> Enviando...</> : <>Enviar mensagem <span aria-hidden="true">↗</span></>}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="modal__rodape">
+            <span>{conversa.nomeAtendente ? `Atendente: ${conversa.nomeAtendente}` : 'Assuma a conversa para responder ao cliente'}</span>
+            <span>Na fila desde {formatarHorario(conversa.entrouNaFilaEm)}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -165,11 +197,13 @@ function App() {
   const [sincronizando, setSincronizando] = useState(false);
   const [assumindoId, setAssumindoId] = useState(null);
   const [carregandoDetalhe, setCarregandoDetalhe] = useState(false);
+  const [enviandoMensagem, setEnviandoMensagem] = useState(false);
   const [detalhe, setDetalhe] = useState(null);
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
   const [conexaoOk, setConexaoOk] = useState(true);
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState(null);
+  const [integracoes, setIntegracoes] = useState({ whatsappConfigurado: false, groqConfigurado: false });
 
   const atendenteSelecionado = atendentes.find((item) => String(item.id) === atendenteId) || null;
 
@@ -186,6 +220,7 @@ function App() {
 
         setFila(dadosFila);
         setAtendentes(dadosAtendentes);
+        chamarApi('/integracoes').then(setIntegracoes).catch(() => {});
         const salvo = window.localStorage.getItem('wxn:atendente');
         const preferido =
           dadosAtendentes.find((item) => String(item.id) === salvo && item.disponivel) ||
@@ -323,6 +358,29 @@ function App() {
     }
   }
 
+  async function enviarMensagem(conteudo) {
+    if (!detalhe || !atendenteSelecionado || detalhe.atendenteId !== atendenteSelecionado.id) {
+      setErro('Selecione o atendente responsável por esta conversa para responder.');
+      return false;
+    }
+    setEnviandoMensagem(true);
+    setErro('');
+    try {
+      const atualizado = await chamarApi(`/conversas/${detalhe.conversaId}/mensagens`, {
+        method: 'POST',
+        body: JSON.stringify({ atendenteId: atendenteSelecionado.id, conteudo }),
+      });
+      setDetalhe(atualizado);
+      await sincronizar(true);
+      return true;
+    } catch (falha) {
+      setErro(falha.message);
+      return false;
+    } finally {
+      setEnviandoMensagem(false);
+    }
+  }
+
   if (carregandoInicial) {
     return (
       <div className="tela-carregando">
@@ -348,6 +406,14 @@ function App() {
             <span className="conexao__ponto" />
             {conexaoOk ? 'Conectado' : 'Sem conexão'}
           </span>
+          <div className="topo__integracoes" aria-label="Status das integrações externas">
+            <span className={`integracao-status ${integracoes.whatsappConfigurado ? 'integracao-status--ok' : ''}`}>
+              <span /> WhatsApp
+            </span>
+            <span className={`integracao-status ${integracoes.groqConfigurado ? 'integracao-status--ok' : ''}`}>
+              <span /> Groq
+            </span>
+          </div>
           <span className="topo__atualizacao">
             {ultimaAtualizacao ? `Atualizado às ${formatarHorario(ultimaAtualizacao)}` : 'Aguardando atualização'}
           </span>
@@ -599,7 +665,15 @@ function App() {
         <span>Atualização automática a cada 15 segundos</span>
       </footer>
 
-      {detalhe && <ModalDetalhe conversa={detalhe} onFechar={() => setDetalhe(null)} />}
+      {detalhe && (
+        <ModalDetalhe
+          conversa={detalhe}
+          atendenteId={atendenteSelecionado?.id}
+          onFechar={() => setDetalhe(null)}
+          onEnviar={enviarMensagem}
+          enviando={enviandoMensagem}
+        />
+      )}
 
       {carregandoDetalhe && (
         <div className="carregando-detalhe" role="status">
