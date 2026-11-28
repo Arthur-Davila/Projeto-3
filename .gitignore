@@ -20,9 +20,9 @@ frontend/.env
 frontend/.env.*
 
 # Variáveis de ambiente e segredos
-.env
-.env.*
-!.env.example
+.env*
+*.env
+*.env.*
 
 # Sistema operacional
 .DS_Store
